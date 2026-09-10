@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
 import '../theme/app_theme.dart';
 import 'otp_verification_screen.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -12,7 +13,6 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _phoneController = TextEditingController();
-
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   @override
@@ -24,36 +24,32 @@ class _LoginScreenState extends State<LoginScreen> {
   void _onGetCodePressed() {
     final phone = _phoneController.text.trim();
     final fullPhone = '+91$phone';
+
     _auth.verifyPhoneNumber(
-        phoneNumber: fullPhone,
-        verificationCompleted: (PhoneAuthCredential credential) async {
-          await _auth.signInWithCredential(credential);
-        },
-
-        codeSent: (String verificationId, int? resendToken) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) =>
-                  OtpVerificationScreen(
-                    phoneNumber: fullPhone,
-                    verificationId: verificationId,
-                  ),
+      phoneNumber: fullPhone,
+      verificationCompleted: (PhoneAuthCredential credential) async {
+        await _auth.signInWithCredential(credential);
+      },
+      codeSent: (String verificationId, int? resendToken) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => OtpVerificationScreen(
+              phoneNumber: fullPhone,
+              verificationId: verificationId,
             ),
-          );
-        },
-        verificationFailed: (FirebaseAuthException e) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(e.message ?? 'Error'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        },
-
-
-        codeAutoRetrievalTimeout: (String verificationId) {},
-
+          ),
+        );
+      },
+      verificationFailed: (FirebaseAuthException e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.message ?? 'Error'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      },
+      codeAutoRetrievalTimeout: (String verificationId) {},
     );
   }
 
@@ -63,17 +59,24 @@ class _LoginScreenState extends State<LoginScreen> {
       backgroundColor: AppTheme.background,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+          padding: const EdgeInsets.symmetric(
+            horizontal: 24.0,
+            vertical: 16.0,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 12),
+
               // Header Badge & Security Check Icon
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: AppTheme.accentGreen,
                       borderRadius: BorderRadius.circular(20),
@@ -95,6 +98,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ],
               ),
+
               const SizedBox(height: 24),
 
               // Key/Lock Icon
@@ -110,6 +114,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   size: 28,
                 ),
               ),
+
               const SizedBox(height: 24),
 
               // Title & Subtitle
@@ -121,7 +126,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   color: AppTheme.textPrimary,
                 ),
               ),
+
               const SizedBox(height: 8),
+
               const Text(
                 'Enter registered mobile number to receive one-time password.',
                 style: TextStyle(
@@ -130,6 +137,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   height: 1.4,
                 ),
               ),
+
               const SizedBox(height: 32),
 
               // Mobile Input Container
@@ -141,11 +149,16 @@ class _LoginScreenState extends State<LoginScreen> {
                   color: AppTheme.textPrimary,
                 ),
               ),
+
               const SizedBox(height: 8),
+
               Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 14,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       border: Border.all(color: AppTheme.cardBorder),
@@ -173,7 +186,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       ],
                     ),
                   ),
+
                   const SizedBox(width: 10),
+
                   Expanded(
                     child: TextField(
                       controller: _phoneController,
@@ -186,7 +201,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ],
               ),
 
-              const Spacer(),
+              const SizedBox(height: 30),
 
               // Get Verification Code Button
               ElevatedButton(
@@ -200,6 +215,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ],
                 ),
               ),
+
               const SizedBox(height: 16),
 
               // ABDM Footer
@@ -213,6 +229,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
               ),
+
               const SizedBox(height: 12),
             ],
           ),

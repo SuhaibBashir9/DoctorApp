@@ -82,7 +82,10 @@ class PatientProfileScreen extends StatelessWidget {
             const SizedBox(height: 24),
 
             // Consultation History Header & List
-            const PreviousConsultationsView(showHeader: true),
+            PreviousConsultationsView(
+              patientId: patientId,
+              showHeader: true,
+            ),
           ],
         ),
       ),

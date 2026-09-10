@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../models/consultation_history.dart';
+import '../services/consultation_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/live_consultation_form.dart';
 import '../widgets/patient_info_header.dart';
@@ -9,13 +11,15 @@ class BeginConsultationScreen extends StatefulWidget {
   final String patientName;
   final int age;
   final String gender;
+  final String consultationType;
 
   const BeginConsultationScreen({
     super.key,
-    this.patientId = 'PAT1042',
-    this.patientName = 'Rahul Sharma',
-    this.age = 28,
-    this.gender = 'Male',
+    required this.patientId,
+    required this.patientName,
+    required this.age,
+    required this.gender,
+    this.consultationType = 'General Consultation',
   });
 
   @override
@@ -26,13 +30,17 @@ class BeginConsultationScreen extends StatefulWidget {
 class _BeginConsultationScreenState extends State<BeginConsultationScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+
   final TextEditingController _notesController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    // 3 Adjacent Tabs: Live Consultation, Previous Consultations, Notes
-    _tabController = TabController(length: 3, vsync: this);
+
+    _tabController = TabController(
+      length: 3,
+      vsync: this,
+    );
   }
 
   @override
@@ -40,6 +48,23 @@ class _BeginConsultationScreenState extends State<BeginConsultationScreen>
     _tabController.dispose();
     _notesController.dispose();
     super.dispose();
+  }
+
+  void _completeConsultation(ConsultationHistory history) {
+    // Save the consultation history.
+    consultationService.addConsultationHistory(history);
+
+    // Move the patient from Waiting to Completed.
+    consultationService.completeConsultation(widget.patientId);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Consultation completed successfully!'),
+        backgroundColor: AppTheme.primaryGreen,
+      ),
+    );
+
+    Navigator.pop(context);
   }
 
   @override
@@ -55,7 +80,11 @@ class _BeginConsultationScreenState extends State<BeginConsultationScreen>
         actions: [
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
-            onSelected: (value) {},
+            onSelected: (value) {
+              if (value == 'cancel') {
+                Navigator.pop(context);
+              }
+            },
             itemBuilder: (BuildContext context) {
               return [
                 const PopupMenuItem(
@@ -75,7 +104,10 @@ class _BeginConsultationScreenState extends State<BeginConsultationScreen>
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 12,
+              ),
               child: PatientInfoHeader(
                 patientId: widget.patientId,
                 patientName: widget.patientName,
@@ -84,9 +116,8 @@ class _BeginConsultationScreenState extends State<BeginConsultationScreen>
               ),
             ),
 
-            // Adjacent Navigation Tabs (Live Consultation | Previous Consultations | Notes)
             Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16.0),
+              margin: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
                 color: Colors.grey.shade200,
                 borderRadius: BorderRadius.circular(10),
@@ -108,11 +139,11 @@ class _BeginConsultationScreenState extends State<BeginConsultationScreen>
                 labelColor: AppTheme.primaryDarkGreen,
                 unselectedLabelColor: AppTheme.textSecondary,
                 labelStyle: const TextStyle(
-                  fontSize: 13,
+                  fontSize: 12,
                   fontWeight: FontWeight.bold,
                 ),
                 unselectedLabelStyle: const TextStyle(
-                  fontSize: 13,
+                  fontSize: 12,
                   fontWeight: FontWeight.w500,
                 ),
                 padding: const EdgeInsets.all(4),
@@ -123,38 +154,41 @@ class _BeginConsultationScreenState extends State<BeginConsultationScreen>
                 ],
               ),
             ),
+
             const SizedBox(height: 12),
 
-            // Tab Views Container
             Expanded(
               child: TabBarView(
                 controller: _tabController,
                 children: [
-                  // Tab 1: Live Consultation View
+                  // Live Consultation
                   SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     child: LiveConsultationForm(
-                      onComplete: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Consultation completed successfully!'),
-                            backgroundColor: AppTheme.primaryGreen,
-                          ),
-                        );
-                        Navigator.pop(context);
-                      },
+                      patientId: widget.patientId,
+                      visitType: widget.consultationType,
+                      onComplete: _completeConsultation,
                     ),
                   ),
 
-                  // Tab 2: Previous Consultations View (Adjacent Page View)
+                  // Previous Consultations
                   SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                    child: const PreviousConsultationsView(showHeader: false),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    child: PreviousConsultationsView(
+                      patientId: widget.patientId,
+                      showHeader: false,
+                    ),
                   ),
 
-                  // Tab 3: Quick Notes
+                  // Private Notes
                   SingleChildScrollView(
-                    padding: const EdgeInsets.all(16.0),
+                    padding: const EdgeInsets.all(16),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -167,18 +201,26 @@ class _BeginConsultationScreenState extends State<BeginConsultationScreen>
                           ),
                         ),
                         const SizedBox(height: 8),
+
                         TextField(
                           controller: _notesController,
                           maxLines: 8,
                           decoration: const InputDecoration(
-                            hintText: 'Type any internal or temporary notes for this session here...',
+                            hintText:
+                            'Type any internal or temporary notes for this session here...',
                           ),
                         ),
+
                         const SizedBox(height: 16),
+
                         ElevatedButton(
                           onPressed: () {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Notes saved successfully')),
+                              const SnackBar(
+                                content: Text(
+                                  'Notes saved successfully',
+                                ),
+                              ),
                             );
                           },
                           child: const Text('Save Notes'),

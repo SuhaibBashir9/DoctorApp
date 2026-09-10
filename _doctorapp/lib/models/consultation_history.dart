@@ -1,4 +1,5 @@
 class ConsultationHistory {
+  final String patientId;
   final String date;
   final String time;
   final String visitType;
@@ -8,6 +9,7 @@ class ConsultationHistory {
   final String doctorNotes;
 
   ConsultationHistory({
+    required this.patientId,
     required this.date,
     required this.time,
     required this.visitType,

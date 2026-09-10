@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+
 import '../models/consultation_queue_item.dart';
+import '../services/consultation_service.dart';
 import '../theme/app_theme.dart';
 import 'begin_consultation_screen.dart';
 
@@ -14,71 +16,37 @@ class _ConsultationsScreenState extends State<ConsultationsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  final List<ConsultationQueueItem> _queueItems = [
-    ConsultationQueueItem(
-      patientId: 'PAT1042',
-      patientName: 'Rahul Sharma',
-      age: 28,
-      gender: 'M',
-      type: 'General Consultation',
-      status: 'Waiting',
-      time: '09:42 AM',
-    ),
-    ConsultationQueueItem(
-      patientId: 'PAT1043',
-      patientName: 'Priya Verma',
-      age: 34,
-      gender: 'F',
-      type: 'Follow-up',
-      status: 'Waiting',
-      time: '09:48 AM',
-    ),
-    ConsultationQueueItem(
-      patientId: 'PAT1044',
-      patientName: 'Aman Khan',
-      age: 40,
-      gender: 'M',
-      type: 'General Consultation',
-      status: 'Waiting',
-      time: '09:55 AM',
-    ),
-  ];
-
-  final List<ConsultationQueueItem> _completedItems = [
-    ConsultationQueueItem(
-      patientId: 'PAT1038',
-      patientName: 'Karan Mehra',
-      age: 31,
-      gender: 'M',
-      type: 'Follow-up',
-      status: 'Completed',
-      time: '09:15 AM',
-    ),
-    ConsultationQueueItem(
-      patientId: 'PAT1039',
-      patientName: 'Neha Gupta',
-      age: 26,
-      gender: 'F',
-      type: 'General Consultation',
-      status: 'Completed',
-      time: '09:25 AM',
-    ),
-  ];
-
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+
+    _tabController = TabController(
+      length: 3,
+      vsync: this,
+    );
+
+    consultationService.addListener(_refresh);
+  }
+
+  void _refresh() {
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   @override
   void dispose() {
+    consultationService.removeListener(_refresh);
     _tabController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final queueItems = consultationService.queueItems;
+    final followUpItems = consultationService.followUpItems;
+    final completedItems = consultationService.completedItems;
+
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
@@ -88,24 +56,38 @@ class _ConsultationsScreenState extends State<ConsultationsScreen>
         child: Column(
           children: [
             const SizedBox(height: 12),
-            // Metrics Summary Row
+
+            // Statistics
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
                 children: [
-                  _buildStatCard('Total Today', '20', AppTheme.primaryGreen),
+                  _buildStatCard(
+                    'Total Today',
+                    '${consultationService.totalCount}',
+                    AppTheme.primaryGreen,
+                  ),
                   const SizedBox(width: 8),
-                  _buildStatCard('In Queue', '08', Colors.orange.shade800),
+                  _buildStatCard(
+                    'In Queue',
+                    '${consultationService.queueCount}',
+                    Colors.orange.shade800,
+                  ),
                   const SizedBox(width: 8),
-                  _buildStatCard('Completed', '12', Colors.blue.shade700),
+                  _buildStatCard(
+                    'Completed',
+                    '${consultationService.completedCount}',
+                    Colors.blue.shade700,
+                  ),
                 ],
               ),
             ),
+
             const SizedBox(height: 16),
 
-            // Tab Selector
+            // Tabs
             Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16.0),
+              margin: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
                 color: Colors.grey.shade200,
                 borderRadius: BorderRadius.circular(10),
@@ -119,40 +101,42 @@ class _ConsultationsScreenState extends State<ConsultationsScreen>
                 indicatorSize: TabBarIndicatorSize.tab,
                 labelColor: AppTheme.primaryDarkGreen,
                 unselectedLabelColor: AppTheme.textSecondary,
-                labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                tabs: const [
-                  Tab(text: 'In Queue (08)'),
-                  Tab(text: 'Completed Today (12)'),
+                labelStyle: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+                tabs: [
+                  Tab(
+                    text: 'In Queue (${queueItems.length})',
+                  ),
+                  Tab(
+                    text: 'Follow-ups (${followUpItems.length})',
+                  ),
+                  Tab(
+                    text: 'Completed (${completedItems.length})',
+                  ),
                 ],
               ),
             ),
+
             const SizedBox(height: 12),
 
-            // Tab Views
+            // Lists
             Expanded(
               child: TabBarView(
                 controller: _tabController,
                 children: [
-                  // Queue List
-                  ListView.separated(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _queueItems.length,
-                    separatorBuilder: (context, index) => const SizedBox(height: 10),
-                    itemBuilder: (context, index) {
-                      final item = _queueItems[index];
-                      return _buildConsultationCard(item, isQueue: true);
-                    },
+                  _buildConsultationList(
+                    queueItems,
+                    isWaiting: true,
                   ),
-
-                  // Completed List
-                  ListView.separated(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _completedItems.length,
-                    separatorBuilder: (context, index) => const SizedBox(height: 10),
-                    itemBuilder: (context, index) {
-                      final item = _completedItems[index];
-                      return _buildConsultationCard(item, isQueue: false);
-                    },
+                  _buildConsultationList(
+                    followUpItems,
+                    isWaiting: true,
+                  ),
+                  _buildConsultationList(
+                    completedItems,
+                    isWaiting: false,
                   ),
                 ],
               ),
@@ -163,14 +147,67 @@ class _ConsultationsScreenState extends State<ConsultationsScreen>
     );
   }
 
-  Widget _buildStatCard(String label, String count, Color color) {
+  Widget _buildConsultationList(
+      List<ConsultationQueueItem> items, {
+        required bool isWaiting,
+      }) {
+    if (items.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              isWaiting
+                  ? Icons.people_outline
+                  : Icons.check_circle_outline,
+              size: 48,
+              color: Colors.grey.shade400,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              isWaiting
+                  ? 'No consultations here'
+                  : 'No completed consultations',
+              style: const TextStyle(
+                color: AppTheme.textSecondary,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.all(16),
+      itemCount: items.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      itemBuilder: (context, index) {
+        return _buildConsultationCard(
+          items[index],
+          isWaiting: isWaiting,
+        );
+      },
+    );
+  }
+
+  Widget _buildStatCard(
+      String label,
+      String count,
+      Color color,
+      ) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        padding: const EdgeInsets.symmetric(
+          vertical: 12,
+          horizontal: 8,
+        ),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppTheme.cardBorder),
+          border: Border.all(
+            color: AppTheme.cardBorder,
+          ),
         ),
         child: Column(
           children: [
@@ -185,6 +222,7 @@ class _ConsultationsScreenState extends State<ConsultationsScreen>
             const SizedBox(height: 2),
             Text(
               label,
+              textAlign: TextAlign.center,
               style: const TextStyle(
                 fontSize: 11,
                 color: AppTheme.textSecondary,
@@ -196,22 +234,34 @@ class _ConsultationsScreenState extends State<ConsultationsScreen>
     );
   }
 
-  Widget _buildConsultationCard(ConsultationQueueItem item, {required bool isQueue}) {
+  Widget _buildConsultationCard(
+      ConsultationQueueItem item, {
+        required bool isWaiting,
+      }) {
+    final isFollowUp = item.type == 'Follow-up';
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.cardBorder),
+        border: Border.all(
+          color: AppTheme.cardBorder,
+        ),
       ),
       child: Row(
         children: [
           CircleAvatar(
             radius: 20,
             backgroundColor: AppTheme.accentGreen,
-            child: const Icon(Icons.person, color: AppTheme.primaryDarkGreen),
+            child: const Icon(
+              Icons.person,
+              color: AppTheme.primaryDarkGreen,
+            ),
           ),
+
           const SizedBox(width: 12),
+
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -224,12 +274,23 @@ class _ConsultationsScreenState extends State<ConsultationsScreen>
                     color: AppTheme.textPrimary,
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 3),
                 Text(
-                  'ID: ${item.patientId}  •  ${item.type}',
+                  'ID: ${item.patientId}',
                   style: const TextStyle(
                     fontSize: 12,
                     color: AppTheme.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  item.type,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: isFollowUp
+                        ? Colors.blue.shade700
+                        : AppTheme.primaryDarkGreen,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -238,37 +299,59 @@ class _ConsultationsScreenState extends State<ConsultationsScreen>
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
-                    color: isQueue ? Colors.orange.shade800 : Colors.green.shade700,
+                    color: isWaiting
+                        ? isFollowUp
+                        ? Colors.blue.shade700
+                        : Colors.orange.shade800
+                        : Colors.green.shade700,
                   ),
                 ),
               ],
             ),
           ),
-          if (isQueue)
+
+          const SizedBox(width: 8),
+
+          if (isWaiting)
             ElevatedButton(
               onPressed: () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => BeginConsultationScreen(
+                    builder: (_) => BeginConsultationScreen(
                       patientId: item.patientId,
                       patientName: item.patientName,
                       age: item.age,
-                      gender: item.gender == 'M' ? 'Male' : 'Female',
+                      gender: item.gender == 'M'
+                          ? 'Male'
+                          : 'Female',
+                      consultationType: item.type,
                     ),
                   ),
                 );
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppTheme.primaryGreen,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                tapTargetSize:
+                MaterialTapTargetSize.shrinkWrap,
               ),
-              child: const Text('Begin', style: TextStyle(fontSize: 12)),
+              child: const Text(
+                'Begin',
+                style: TextStyle(
+                  fontSize: 12,
+                ),
+              ),
             )
           else
-            const Icon(Icons.check_circle, color: Colors.green),
+            const Icon(
+              Icons.check_circle,
+              color: Colors.green,
+            ),
         ],
       ),
     );

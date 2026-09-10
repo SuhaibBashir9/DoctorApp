@@ -4,7 +4,7 @@ class ConsultationQueueItem {
   final int age;
   final String gender;
   final String type;
-  final String status;
+  String status;
   final String time;
 
   ConsultationQueueItem({

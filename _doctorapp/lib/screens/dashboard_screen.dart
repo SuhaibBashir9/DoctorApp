@@ -1,42 +1,41 @@
 import 'package:flutter/material.dart';
+
 import '../models/consultation_queue_item.dart';
+import '../services/consultation_service.dart';
 import '../theme/app_theme.dart';
 import 'begin_consultation_screen.dart';
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
-  List<ConsultationQueueItem> get _queueItems => [
-        ConsultationQueueItem(
-          patientId: 'PAT1042',
-          patientName: 'Rahul Sharma',
-          age: 28,
-          gender: 'M',
-          type: 'General Consultation',
-          status: 'Waiting',
-          time: '09:42 AM',
-        ),
-        ConsultationQueueItem(
-          patientId: 'PAT1043',
-          patientName: 'Priya Verma',
-          age: 34,
-          gender: 'F',
-          type: 'Follow-up',
-          status: 'Waiting',
-          time: '09:48 AM',
-        ),
-        ConsultationQueueItem(
-          patientId: 'PAT1044',
-          patientName: 'Aman Khan',
-          age: 40,
-          gender: 'M',
-          type: 'General Consultation',
-          status: 'Waiting',
-          time: '09:55 AM',
-        ),
-      ];
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
 
-  void _navigateToBeginConsultation(BuildContext context, ConsultationQueueItem item) {
+class _DashboardScreenState extends State<DashboardScreen> {
+  @override
+  void initState() {
+    super.initState();
+
+    consultationService.addListener(_refresh);
+  }
+
+  void _refresh() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  @override
+  void dispose() {
+    consultationService.removeListener(_refresh);
+    super.dispose();
+  }
+
+  void _navigateToBeginConsultation(
+      BuildContext context,
+      ConsultationQueueItem item,
+      ) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -45,6 +44,7 @@ class DashboardScreen extends StatelessWidget {
           patientName: item.patientName,
           age: item.age,
           gender: item.gender == 'M' ? 'Male' : 'Female',
+          consultationType: item.type,
         ),
       ),
     );
@@ -52,11 +52,19 @@ class DashboardScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final queueItems = [
+      ...consultationService.queueItems,
+      ...consultationService.followUpItems,
+    ];
+
     return Scaffold(
       backgroundColor: AppTheme.background,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
+          padding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 16,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -86,12 +94,15 @@ class DashboardScreen extends StatelessWidget {
                       ),
                     ],
                   ),
+
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       shape: BoxShape.circle,
-                      border: Border.all(color: AppTheme.cardBorder),
+                      border: Border.all(
+                        color: AppTheme.cardBorder,
+                      ),
                     ),
                     child: Stack(
                       children: [
@@ -100,23 +111,25 @@ class DashboardScreen extends StatelessWidget {
                           color: AppTheme.textPrimary,
                           size: 22,
                         ),
-                        Positioned(
-                          right: 0,
-                          top: 0,
-                          child: Container(
-                            width: 8,
-                            height: 8,
-                            decoration: const BoxDecoration(
-                              color: Colors.red,
-                              shape: BoxShape.circle,
+                        if (queueItems.isNotEmpty)
+                          Positioned(
+                            right: 0,
+                            top: 0,
+                            child: Container(
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                color: Colors.red,
+                                shape: BoxShape.circle,
+                              ),
                             ),
                           ),
-                        ),
                       ],
                     ),
                   ),
                 ],
               ),
+
               const SizedBox(height: 20),
 
               // Today's Consultations Card
@@ -126,7 +139,9 @@ class DashboardScreen extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppTheme.cardBorder),
+                  border: Border.all(
+                    color: AppTheme.cardBorder,
+                  ),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withOpacity(0.02),
@@ -136,12 +151,14 @@ class DashboardScreen extends StatelessWidget {
                   ],
                 ),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  mainAxisAlignment:
+                  MainAxisAlignment.spaceBetween,
                   children: [
-                    const Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    Column(
+                      crossAxisAlignment:
+                      CrossAxisAlignment.start,
                       children: [
-                        Text(
+                        const Text(
                           "Today's Consultations",
                           style: TextStyle(
                             fontSize: 14,
@@ -149,28 +166,33 @@ class DashboardScreen extends StatelessWidget {
                             color: AppTheme.textSecondary,
                           ),
                         ),
-                        SizedBox(height: 8),
+
+                        const SizedBox(height: 8),
+
                         Text(
-                          '08',
-                          style: TextStyle(
+                          '${consultationService.totalCount}',
+                          style: const TextStyle(
                             fontSize: 32,
                             fontWeight: FontWeight.bold,
                             color: AppTheme.textPrimary,
                           ),
                         ),
-                        SizedBox(height: 4),
+
+                        const SizedBox(height: 4),
+
                         Text(
-                          'Patients Waiting',
-                          style: TextStyle(
+                          '${consultationService.queueCount + consultationService.followUpCount} patients waiting',
+                          style: const TextStyle(
                             fontSize: 12,
                             color: AppTheme.textSecondary,
                           ),
                         ),
                       ],
                     ),
+
                     Container(
                       padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
+                      decoration: const BoxDecoration(
                         color: AppTheme.accentGreen,
                         shape: BoxShape.circle,
                       ),
@@ -183,127 +205,242 @@ class DashboardScreen extends StatelessWidget {
                   ],
                 ),
               ),
+
               const SizedBox(height: 24),
 
               // Consultation Queue Header
-              const Text(
-                'Consultation Queue',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.textPrimary,
-                ),
+              Row(
+                mainAxisAlignment:
+                MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Consultation Queue',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.textPrimary,
+                    ),
+                  ),
+                  Text(
+                    '${queueItems.length}',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.primaryGreen,
+                    ),
+                  ),
+                ],
               ),
+
               const SizedBox(height: 12),
 
               // Queue List
-              ListView.separated(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: _queueItems.length,
-                separatorBuilder: (context, index) => const SizedBox(height: 12),
-                itemBuilder: (context, index) {
-                  final item = _queueItems[index];
-                  return Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppTheme.cardBorder),
+              if (queueItems.isEmpty)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: AppTheme.cardBorder,
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            CircleAvatar(
-                              radius: 20,
-                              backgroundColor: AppTheme.accentGreen,
-                              child: const Icon(
-                                Icons.person,
-                                color: AppTheme.primaryDarkGreen,
-                                size: 24,
+                  ),
+                  child: const Column(
+                    children: [
+                      Icon(
+                        Icons.people_outline,
+                        size: 42,
+                        color: AppTheme.textSecondary,
+                      ),
+                      SizedBox(height: 10),
+                      Text(
+                        'No patients waiting',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textPrimary,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'Patients added from the Patients section will appear here.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppTheme.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics:
+                  const NeverScrollableScrollPhysics(),
+                  itemCount: queueItems.length,
+                  separatorBuilder: (context, index) =>
+                  const SizedBox(height: 12),
+                  itemBuilder: (context, index) {
+                    final item = queueItems[index];
+                    final isFollowUp =
+                        item.type == 'Follow-up';
+
+                    return Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius:
+                        BorderRadius.circular(12),
+                        border: Border.all(
+                          color: AppTheme.cardBorder,
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment:
+                        CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            crossAxisAlignment:
+                            CrossAxisAlignment.start,
+                            children: [
+                              CircleAvatar(
+                                radius: 20,
+                                backgroundColor:
+                                AppTheme.accentGreen,
+                                child: const Icon(
+                                  Icons.person,
+                                  color: AppTheme
+                                      .primaryDarkGreen,
+                                  size: 24,
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+
+                              const SizedBox(width: 12),
+
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment:
+                                  CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      item.patientName,
+                                      style:
+                                      const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight:
+                                        FontWeight.bold,
+                                        color: AppTheme
+                                            .textPrimary,
+                                      ),
+                                    ),
+
+                                    const SizedBox(height: 2),
+
+                                    Text(
+                                      'Patient #${item.patientId.replaceAll('PAT', '')}  •  ${item.age} Y',
+                                      style:
+                                      const TextStyle(
+                                        fontSize: 13,
+                                        color: AppTheme
+                                            .textSecondary,
+                                      ),
+                                    ),
+
+                                    const SizedBox(height: 3),
+
+                                    Text(
+                                      item.type,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight:
+                                        FontWeight.w600,
+                                        color: isFollowUp
+                                            ? Colors
+                                            .blue.shade700
+                                            : AppTheme
+                                            .textSecondary,
+                                      ),
+                                    ),
+
+                                    const SizedBox(height: 2),
+
+                                    Text(
+                                      '${item.status}  •  ${item.time}',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: isFollowUp
+                                            ? Colors
+                                            .blue.shade700
+                                            : Colors.orange
+                                            .shade800,
+                                        fontWeight:
+                                        FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 12),
+
+                          Align(
+                            alignment:
+                            Alignment.centerRight,
+                            child: OutlinedButton(
+                              onPressed: () =>
+                                  _navigateToBeginConsultation(
+                                    context,
+                                    item,
+                                  ),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor:
+                                AppTheme.primaryGreen,
+                                side: const BorderSide(
+                                  color:
+                                  AppTheme.primaryGreen,
+                                ),
+                                shape:
+                                RoundedRectangleBorder(
+                                  borderRadius:
+                                  BorderRadius.circular(8),
+                                ),
+                                padding:
+                                const EdgeInsets
+                                    .symmetric(
+                                  horizontal: 16,
+                                  vertical: 10,
+                                ),
+                              ),
+                              child: const Row(
+                                mainAxisSize:
+                                MainAxisSize.min,
                                 children: [
                                   Text(
-                                    'Patient #${item.patientId.replaceAll('PAT', '')}',
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.bold,
-                                      color: AppTheme.textPrimary,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    '${item.patientName}  •  ${item.age} Y',
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      color: AppTheme.textSecondary,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    '${item.type}',
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: AppTheme.textSecondary,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    '${item.status}  •  ${item.time}',
+                                    'Begin Consultation',
                                     style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.orange.shade800,
-                                      fontWeight: FontWeight.w500,
+                                      fontWeight:
+                                      FontWeight.bold,
+                                      fontSize: 13,
                                     ),
+                                  ),
+                                  SizedBox(width: 6),
+                                  Icon(
+                                    Icons.arrow_forward,
+                                    size: 16,
                                   ),
                                 ],
                               ),
                             ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: OutlinedButton(
-                            onPressed: () => _navigateToBeginConsultation(context, item),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: AppTheme.primaryGreen,
-                              side: const BorderSide(color: AppTheme.primaryGreen),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 10),
-                            ),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  'Begin Consultation',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                                SizedBox(width: 6),
-                                Icon(Icons.arrow_forward, size: 16),
-                              ],
-                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
             ],
           ),
         ),
