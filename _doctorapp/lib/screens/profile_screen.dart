@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'profile/edit_profile_screen.dart';
 import 'profile/consultation_settings_screen.dart';
@@ -87,10 +86,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-
   Future<void> _showNotificationSettings() async {
-    final result =
-    await Navigator.push<Map<String, dynamic>>(
+    final result = await Navigator.push<Map<String, dynamic>>(
       context,
       MaterialPageRoute(
         builder: (_) => NotificationSettingsScreen(
@@ -105,14 +102,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (!mounted || result == null) return;
 
     setState(() {
-      _notificationsEnabled =
-      result['queueAlerts'] as bool;
+      _notificationsEnabled = result['queueAlerts'] as bool;
     });
   }
 
   Future<void> _logout() async {
-    await FirebaseAuth.instance.signOut();
-
     if (!mounted) return;
 
     Navigator.pushAndRemoveUntil(
@@ -120,7 +114,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       MaterialPageRoute(
         builder: (_) => const LoginScreen(),
       ),
-          (route) => false,
+      (route) => false,
     );
   }
 
@@ -227,8 +221,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   color: AppTheme.accentGreen,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: AppTheme.primaryGreen
-                        .withOpacity(0.3),
+                    color: AppTheme.primaryGreen.withOpacity(0.3),
                   ),
                 ),
                 child: const Row(
@@ -241,22 +234,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     SizedBox(width: 12),
                     Expanded(
                       child: Column(
-                        crossAxisAlignment:
-                        CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             'AUTHENTICATED SESSION',
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
-                              color:
-                              AppTheme.primaryDarkGreen,
+                              color: AppTheme.primaryDarkGreen,
                               letterSpacing: 0.5,
                             ),
                           ),
                           SizedBox(height: 2),
                           Text(
-                            'Firebase phone authentication is active',
+                            'Local doctor session active',
                             style: TextStyle(
                               fontSize: 12,
                               color: AppTheme.textPrimary,
@@ -296,7 +287,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       icon: Icons.access_time_filled,
                       title: 'Consultation Fees & Timings',
                       subtitle:
-                      '$_startTime - $_endTime  •  ₹$_consultationFee',
+                          '$_startTime - $_endTime  •  ₹$_consultationFee',
                       onTap: _editConsultationSettings,
                     ),
 
@@ -320,8 +311,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     _buildSettingTile(
                       icon: Icons.security,
                       title: 'Security & PIN Settings',
-                      subtitle:
-                      'Manage authentication & PIN',
+                      subtitle: 'Manage authentication & PIN',
                       onTap: _showSecuritySettings,
                     ),
 
@@ -358,8 +348,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                   child: const Row(
-                    mainAxisAlignment:
-                    MainAxisAlignment.center,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(Icons.logout, size: 20),
                       SizedBox(width: 8),

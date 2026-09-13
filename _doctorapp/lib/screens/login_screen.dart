@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
+import '../api/api_client.dart';
+import '../api/api_endpoints.dart';
+import '../api/dtos.dart';
 import '../theme/app_theme.dart';
 import 'otp_verification_screen.dart';
 
@@ -13,7 +15,7 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _phoneController = TextEditingController();
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -21,36 +23,58 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _onGetCodePressed() {
+  Future<void> _onGetCodePressed() async {
     final phone = _phoneController.text.trim();
+    if (phone.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a valid phone number.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     final fullPhone = '+91$phone';
 
-    _auth.verifyPhoneNumber(
-      phoneNumber: fullPhone,
-      verificationCompleted: (PhoneAuthCredential credential) async {
-        await _auth.signInWithCredential(credential);
-      },
-      codeSent: (String verificationId, int? resendToken) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => OtpVerificationScreen(
-              phoneNumber: fullPhone,
-              verificationId: verificationId,
-            ),
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final response = await apiClient.post(
+        ApiEndpoints.requestOtp,
+        body: {'mobileNumber': fullPhone},
+      );
+
+      final dto = RequestOtpDto.fromJson(response);
+
+      if (!mounted) return;
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => OtpVerificationScreen(
+            phoneNumber: fullPhone,
+            verificationId: dto.key.isNotEmpty ? dto.key : 'dummy_verification_id',
           ),
-        );
-      },
-      verificationFailed: (FirebaseAuthException e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.message ?? 'Error'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      },
-      codeAutoRetrievalTimeout: (String verificationId) {},
-    );
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString()),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -205,13 +229,23 @@ class _LoginScreenState extends State<LoginScreen> {
 
               // Get Verification Code Button
               ElevatedButton(
-                onPressed: _onGetCodePressed,
-                child: const Row(
+                onPressed: _isLoading ? null : _onGetCodePressed,
+                child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text('Get Verification Code'),
-                    SizedBox(width: 8),
-                    Icon(Icons.arrow_forward, size: 18),
+                    Text(_isLoading ? 'Sending...' : 'Get Verification Code'),
+                    const SizedBox(width: 8),
+                    if (_isLoading)
+                      const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    else
+                      const Icon(Icons.arrow_forward, size: 18),
                   ],
                 ),
               ),
