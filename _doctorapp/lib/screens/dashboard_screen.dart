@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../api/api_client.dart';
+import '../api/api_endpoints.dart';
+import '../api/dtos.dart';
 import '../models/consultation_queue_item.dart';
 import '../services/consultation_service.dart';
 import '../theme/app_theme.dart';
@@ -13,11 +16,19 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
+  List<ClinicDto> _clinics = [];
+  ClinicDto? _selectedClinic;
+  DoctorDashboardDto? _dashboardData;
+  bool _isLoadingDashboard = false;
+  bool _isSessionActive = true;
+  int _activeScheduleId = 1;
+
   @override
   void initState() {
     super.initState();
-
     consultationService.addListener(_refresh);
+    _loadClinics();
+    _loadDashboard(_activeScheduleId);
   }
 
   void _refresh() {
@@ -32,10 +43,100 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.dispose();
   }
 
+  Future<void> _loadClinics() async {
+    try {
+      final response = await apiClient.get(ApiEndpoints.getClinics);
+      final list = response['data'] as List? ?? response['clinics'] as List? ?? [];
+      final parsed = list.map((json) => ClinicDto.fromJson(json)).toList();
+
+      if (mounted && parsed.isNotEmpty) {
+        setState(() {
+          _clinics = parsed;
+          _selectedClinic = parsed.first;
+          _activeScheduleId = parsed.first.id;
+        });
+        _loadDashboard(_activeScheduleId);
+      }
+    } catch (_) {
+      // Fallback silently if offline or mock
+    }
+  }
+
+  Future<void> _loadDashboard(int scheduleId) async {
+    if (_isLoadingDashboard) return;
+
+    setState(() {
+      _isLoadingDashboard = true;
+    });
+
+    try {
+      final response = await apiClient.get(
+        ApiEndpoints.getDoctorDashboard,
+        query: {'scheduleId': scheduleId},
+      );
+
+      final data = DoctorDashboardDto.fromJson(
+        response['data'] is Map ? response['data'] : response,
+      );
+
+      if (mounted) {
+        setState(() {
+          _dashboardData = data;
+        });
+      }
+    } catch (_) {
+      // Keep local service queue on error
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingDashboard = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _toggleOpdSession() async {
+    final newStatus = !_isSessionActive;
+    setState(() {
+      _isSessionActive = newStatus;
+    });
+
+    try {
+      final endpoint = newStatus
+          ? ApiEndpoints.startClinicSchedule
+          : ApiEndpoints.closeClinicSchedule;
+
+      await apiClient.post(
+        endpoint,
+        body: {'ScheduleID': _activeScheduleId},
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            newStatus
+                ? 'OPD Session Started Successfully'
+                : 'OPD Session Paused/Closed',
+          ),
+          backgroundColor: newStatus ? AppTheme.primaryGreen : Colors.orange,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString()),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   void _navigateToBeginConsultation(
-      BuildContext context,
-      ConsultationQueueItem item,
-      ) {
+    BuildContext context,
+    ConsultationQueueItem item,
+  ) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -52,10 +153,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final queueItems = [
-      ...consultationService.queueItems,
-      ...consultationService.followUpItems,
-    ];
+    // Merge API appointments with local service items if available
+    final apiAppointments = _dashboardData?.appointments ?? [];
+    final queueItems = apiAppointments.isNotEmpty
+        ? apiAppointments.map((appt) {
+            return ConsultationQueueItem(
+              patientId: 'PAT${appt.patientId}',
+              patientName: appt.patientName,
+              age: 35, // default
+              gender: 'M',
+              type: 'General Consultation',
+              status: 'Waiting',
+              time: appt.checkInTime.isNotEmpty ? appt.checkInTime : '10:00 AM',
+            );
+          }).toList()
+        : [
+            ...consultationService.queueItems,
+            ...consultationService.followUpItems,
+          ];
+
+    // Today's active consultations count for current clinic schedule
+    final totalCount = apiAppointments.isNotEmpty
+        ? apiAppointments.length
+        : consultationService.totalCount;
+
+    final waitingCount = queueItems.length;
 
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -68,66 +190,187 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header Greeting & Notification Bell
+              // Header Greeting & Clinic Selector
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Good Morning, Doctor',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: AppTheme.textPrimary,
-                        ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        "Here's your today's overview",
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: AppTheme.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: AppTheme.cardBorder,
-                      ),
-                    ),
-                    child: Stack(
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(
-                          Icons.notifications_outlined,
-                          color: AppTheme.textPrimary,
-                          size: 22,
+                        const Text(
+                          'Good Morning, Doctor',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.textPrimary,
+                          ),
                         ),
-                        if (queueItems.isNotEmpty)
-                          Positioned(
-                            right: 0,
-                            top: 0,
-                            child: Container(
-                              width: 8,
-                              height: 8,
-                              decoration: const BoxDecoration(
-                                color: Colors.red,
-                                shape: BoxShape.circle,
+                        const SizedBox(height: 4),
+                        if (_clinics.isNotEmpty)
+                          DropdownButtonHideUnderline(
+                            child: DropdownButton<ClinicDto>(
+                              value: _selectedClinic,
+                              isDense: true,
+                              icon: const Icon(
+                                Icons.keyboard_arrow_down,
+                                color: AppTheme.primaryDarkGreen,
+                                size: 20,
                               ),
+                              items: _clinics.map((clinic) {
+                                return DropdownMenuItem(
+                                  value: clinic,
+                                  child: Text(
+                                    clinic.name.isNotEmpty
+                                        ? clinic.name
+                                        : 'Main OPD Clinic',
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppTheme.primaryDarkGreen,
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                              onChanged: (val) {
+                                if (val != null) {
+                                  setState(() {
+                                    _selectedClinic = val;
+                                    _activeScheduleId = val.id;
+                                  });
+                                  _loadDashboard(val.id);
+                                }
+                              },
+                            ),
+                          )
+                        else
+                          const Text(
+                            "Here's your today's overview",
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: AppTheme.textSecondary,
                             ),
                           ),
                       ],
                     ),
                   ),
+
+                  // Notification Bell & Refresh Icon
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: _isLoadingDashboard
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.refresh, color: AppTheme.textPrimary),
+                        tooltip: 'Refresh Queue',
+                        onPressed: () => _loadDashboard(_activeScheduleId),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: AppTheme.cardBorder,
+                          ),
+                        ),
+                        child: Stack(
+                          children: [
+                            const Icon(
+                              Icons.notifications_outlined,
+                              color: AppTheme.textPrimary,
+                              size: 22,
+                            ),
+                            if (queueItems.isNotEmpty)
+                              Positioned(
+                                right: 0,
+                                top: 0,
+                                child: Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: const BoxDecoration(
+                                    color: Colors.red,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
+              ),
+
+              const SizedBox(height: 20),
+
+              // OPD Session Toggle Control
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: _isSessionActive ? AppTheme.accentGreen : Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: _isSessionActive
+                        ? AppTheme.primaryGreen.withOpacity(0.3)
+                        : Colors.orange.shade200,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      _isSessionActive ? Icons.play_circle_fill : Icons.pause_circle_filled,
+                      color: _isSessionActive ? AppTheme.primaryDarkGreen : Colors.orange.shade800,
+                      size: 24,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _isSessionActive ? 'OPD SESSION ACTIVE' : 'OPD SESSION PAUSED',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: _isSessionActive
+                                  ? AppTheme.primaryDarkGreen
+                                  : Colors.orange.shade900,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _isSessionActive
+                                ? 'Receiving checked-in patients'
+                                : 'Patients paused from queue',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppTheme.textPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: _toggleOpdSession,
+                      child: Text(
+                        _isSessionActive ? 'Pause OPD' : 'Start OPD',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: _isSessionActive
+                              ? AppTheme.primaryDarkGreen
+                              : Colors.orange.shade900,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
 
               const SizedBox(height: 20),
@@ -151,12 +394,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ],
                 ),
                 child: Row(
-                  mainAxisAlignment:
-                  MainAxisAlignment.spaceBetween,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Column(
-                      crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
                           "Today's Consultations",
@@ -166,22 +407,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             color: AppTheme.textSecondary,
                           ),
                         ),
-
                         const SizedBox(height: 8),
-
                         Text(
-                          '${consultationService.totalCount}',
+                          '$totalCount',
                           style: const TextStyle(
                             fontSize: 32,
                             fontWeight: FontWeight.bold,
                             color: AppTheme.textPrimary,
                           ),
                         ),
-
                         const SizedBox(height: 4),
-
                         Text(
-                          '${consultationService.queueCount + consultationService.followUpCount} patients waiting',
+                          '$waitingCount patients waiting in queue',
                           style: const TextStyle(
                             fontSize: 12,
                             color: AppTheme.textSecondary,
@@ -189,7 +426,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ),
                       ],
                     ),
-
                     Container(
                       padding: const EdgeInsets.all(14),
                       decoration: const BoxDecoration(
@@ -210,8 +446,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
               // Consultation Queue Header
               Row(
-                mainAxisAlignment:
-                MainAxisAlignment.spaceBetween,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text(
                     'Consultation Queue',
@@ -277,106 +512,78 @@ class _DashboardScreenState extends State<DashboardScreen> {
               else
                 ListView.separated(
                   shrinkWrap: true,
-                  physics:
-                  const NeverScrollableScrollPhysics(),
+                  physics: const NeverScrollableScrollPhysics(),
                   itemCount: queueItems.length,
-                  separatorBuilder: (context, index) =>
-                  const SizedBox(height: 12),
+                  separatorBuilder: (context, index) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
                     final item = queueItems[index];
-                    final isFollowUp =
-                        item.type == 'Follow-up';
+                    final isFollowUp = item.type == 'Follow-up';
 
                     return Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius:
-                        BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: AppTheme.cardBorder,
                         ),
                       ),
                       child: Column(
-                        crossAxisAlignment:
-                        CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
-                            crossAxisAlignment:
-                            CrossAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               CircleAvatar(
                                 radius: 20,
-                                backgroundColor:
-                                AppTheme.accentGreen,
+                                backgroundColor: AppTheme.accentGreen,
                                 child: const Icon(
                                   Icons.person,
-                                  color: AppTheme
-                                      .primaryDarkGreen,
+                                  color: AppTheme.primaryDarkGreen,
                                   size: 24,
                                 ),
                               ),
-
                               const SizedBox(width: 12),
-
                               Expanded(
                                 child: Column(
-                                  crossAxisAlignment:
-                                  CrossAxisAlignment.start,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
                                       item.patientName,
-                                      style:
-                                      const TextStyle(
+                                      style: const TextStyle(
                                         fontSize: 14,
-                                        fontWeight:
-                                        FontWeight.bold,
-                                        color: AppTheme
-                                            .textPrimary,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppTheme.textPrimary,
                                       ),
                                     ),
-
                                     const SizedBox(height: 2),
-
                                     Text(
                                       'Patient #${item.patientId.replaceAll('PAT', '')}  •  ${item.age} Y',
-                                      style:
-                                      const TextStyle(
+                                      style: const TextStyle(
                                         fontSize: 13,
-                                        color: AppTheme
-                                            .textSecondary,
+                                        color: AppTheme.textSecondary,
                                       ),
                                     ),
-
                                     const SizedBox(height: 3),
-
                                     Text(
                                       item.type,
                                       style: TextStyle(
                                         fontSize: 12,
-                                        fontWeight:
-                                        FontWeight.w600,
+                                        fontWeight: FontWeight.w600,
                                         color: isFollowUp
-                                            ? Colors
-                                            .blue.shade700
-                                            : AppTheme
-                                            .textSecondary,
+                                            ? Colors.blue.shade700
+                                            : AppTheme.textSecondary,
                                       ),
                                     ),
-
                                     const SizedBox(height: 2),
-
                                     Text(
                                       '${item.status}  •  ${item.time}',
                                       style: TextStyle(
                                         fontSize: 12,
                                         color: isFollowUp
-                                            ? Colors
-                                            .blue.shade700
-                                            : Colors.orange
-                                            .shade800,
-                                        fontWeight:
-                                        FontWeight.w500,
+                                            ? Colors.blue.shade700
+                                            : Colors.orange.shade800,
+                                        fontWeight: FontWeight.w500,
                                       ),
                                     ),
                                   ],
@@ -384,46 +591,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               ),
                             ],
                           ),
-
                           const SizedBox(height: 12),
-
                           Align(
-                            alignment:
-                            Alignment.centerRight,
+                            alignment: Alignment.centerRight,
                             child: OutlinedButton(
-                              onPressed: () =>
-                                  _navigateToBeginConsultation(
-                                    context,
-                                    item,
-                                  ),
+                              onPressed: () => _navigateToBeginConsultation(
+                                context,
+                                item,
+                              ),
                               style: OutlinedButton.styleFrom(
-                                foregroundColor:
-                                AppTheme.primaryGreen,
+                                foregroundColor: AppTheme.primaryGreen,
                                 side: const BorderSide(
-                                  color:
-                                  AppTheme.primaryGreen,
+                                  color: AppTheme.primaryGreen,
                                 ),
-                                shape:
-                                RoundedRectangleBorder(
-                                  borderRadius:
-                                  BorderRadius.circular(8),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
                                 ),
-                                padding:
-                                const EdgeInsets
-                                    .symmetric(
+                                padding: const EdgeInsets.symmetric(
                                   horizontal: 16,
                                   vertical: 10,
                                 ),
                               ),
                               child: const Row(
-                                mainAxisSize:
-                                MainAxisSize.min,
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Text(
                                     'Begin Consultation',
                                     style: TextStyle(
-                                      fontWeight:
-                                      FontWeight.bold,
+                                      fontWeight: FontWeight.bold,
                                       fontSize: 13,
                                     ),
                                   ),

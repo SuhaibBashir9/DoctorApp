@@ -284,6 +284,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Column(
                   children: [
                     _buildSettingTile(
+                      icon: icsn.storefront,
+                      title: 'Manage OPD Clinics',
+                      subtitle: 'Manage clinics',
+                      onTap: (){
+
+                      }
+                    )
+                    _buildSettingTile(
                       icon: Icons.access_time_filled,
                       title: 'Consultation Fees & Timings',
                       subtitle:
